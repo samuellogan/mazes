@@ -1,0 +1,5 @@
+lib/javafx-sdk-22/*
+
+.DS_Store
+
+.vscode/
