@@ -2,12 +2,19 @@ package main.java.generator;
 
 public interface MazeGenerator {
     /**
-     * generates a maze with the specified dimensions.
-     * 
-     * @param width  the width of the maze
-     * @param height the height of the maze
-     * @return a 2D integer array representing the maze, where 0s represent paths,
-     *         and 1s represent walls.
+     * Initializes the maze generation process.
+     *
+     * @param maze The maze array to be generated.
      */
-    int[][] generateMaze(int width, int height);
+    void initializeMaze(int[][] maze);
+
+    /**
+     * Performs a single step of the maze generation process. This method should be
+     * called repeatedly to animate the maze generation.
+     *
+     * @param maze The maze array being generated.
+     * @return true if the generation process should continue, false if it is
+     *         complete.
+     */
+    boolean generateMazeTick(int[][] maze);
 }

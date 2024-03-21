@@ -2,61 +2,76 @@ package main.java.generator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Stack;
+
+import main.java.application.Main;
 
 public class RecursiveBacktracker implements MazeGenerator {
 
-    @Override
-    public int[][] generateMaze(int width, int height) {
-        // initialize maze with walls (1s)
-        int[][] maze = new int[height][width];
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                maze[i][j] = 1;
+    private Stack<int[]> stack = new Stack<>();
+    private boolean initialized = false;
+
+    public boolean generateMazeTick(int[][] maze) {
+        if (!initialized) {
+            initializeMaze(maze);
+            initialized = true;
+        }
+
+        while (!stack.isEmpty()) {
+            int[] current = stack.peek(); // Use peek to look at the top of the stack without removing it
+            int row = current[0];
+            int col = current[1];
+            List<int[]> validDirections = new ArrayList<>();
+
+            for (int[] direction : new int[][] { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } }) {
+                int newRow = row + direction[0] * 2;
+                int newCol = col + direction[1] * 2;
+
+                // Check if the new position is within bounds and is a wall
+                if (newRow >= 0 && newRow < maze.length && newCol >= 0 && newCol < maze[0].length
+                        && maze[newRow][newCol] == Main.WALL) {
+                    validDirections.add(direction);
+                }
+            }
+
+            if (!validDirections.isEmpty()) {
+                // if there are valid directions to extend the maze, choose one at random
+                Collections.shuffle(validDirections);
+                int[] direction = validDirections.get(0);
+                int newRow = row + direction[0] * 2;
+                int newCol = col + direction[1] * 2;
+
+                // remove the wall and extend the path
+                maze[row + direction[0]][col + direction[1]] = Main.PATH;
+                maze[newRow][newCol] = Main.PATH;
+
+                // push the new cell onto the stack
+                stack.push(new int[] { newRow, newCol });
+
+                // a step has been made, return to update the UI
+                return true;
+            } else {
+                // if no valid directions, this path is a dead end. pop and try another.
+                stack.pop();
             }
         }
 
-        // start generation from the top-left cell (or any cell you prefer)
-        recursiveBacktrack(maze, 1, 1);
-
-        maze[1][0] = 4;
-        maze[height - 2][width - 1] = 5;
-
-        return maze;
+        // if the stack is empty, the maze is complete
+        MazeUtils.setStartAndEndPoints(maze);
+        return false;
     }
 
-    /**
-     * recursive backtracking algorithm to generate a maze
-     * 
-     * @param maze the maze to generate
-     * @param row  the current row
-     * @param col  the current column
-     */
-    private void recursiveBacktrack(int[][] maze, int row, int col) {
-        // directions: up, right, down, left
-        int[][] directions = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
-        // mark the current cell as a path (0)
-        maze[row][col] = 0;
-
-        // randomize the directions to ensure maze randomness
-        ArrayList<Integer> directionIndexes = new ArrayList<>();
-        for (int i = 0; i < directions.length; i++)
-            directionIndexes.add(i);
-        Collections.shuffle(directionIndexes);
-
-        // explore the neighbors
-        for (int i : directionIndexes) {
-            // move two steps in the direction
-            int newRow = row + directions[i][0] * 2;
-            int newCol = col + directions[i][1] * 2;
-
-            // check if the new position is within the maze bounds and has not been visited
-            if (newRow >= 0 && newRow < maze.length && newCol >= 0 && newCol < maze[0].length
-                    && maze[newRow][newCol] == 1) {
-                // remove the wall between the current cell and the new cell
-                maze[row + directions[i][0]][col + directions[i][1]] = 0;
-                // recurse from the new cell
-                recursiveBacktrack(maze, newRow, newCol);
+    public void initializeMaze(int[][] maze) {
+        for (int i = 0; i < maze.length; i++) {
+            for (int j = 0; j < maze[i].length; j++) {
+                maze[i][j] = Main.WALL;
             }
         }
+        // Optionally, choose a random starting cell
+        int startRow = 1; // Example: start at the top-left corner
+        int startCol = 1;
+        maze[startRow][startCol] = Main.PATH;
+        stack.push(new int[] { startRow, startCol });
     }
 }

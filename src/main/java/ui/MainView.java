@@ -1,12 +1,16 @@
 package main.java.ui;
 
+import javafx.animation.AnimationTimer;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.control.Label;
+import javafx.scene.control.Slider;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -20,8 +24,23 @@ public class MainView {
 
     private Canvas canvas;
     private Stage primaryStage;
-    private int[][] currentMaze;
+    private AnimationTimer animationTimer;
+    private MazeGenerator generator;
     private boolean isSolved;
+    private boolean isPaused = false;
+    private int[][] currentMaze;
+
+    TextField sizeXInput;
+    TextField sizeYInput;
+
+    Label generatorControlsLabel;
+    Button generatorPlayButton;
+    Button generatorPauseButton;
+    Button generatorStepButton;
+    Button generatorRestartButton;
+    Slider generatorDelaySlider;
+
+    ComboBox<String> generatorDropdown;
 
     public MainView(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -35,6 +54,8 @@ public class MainView {
         primaryStage.setTitle("Maze Viewer");
 
         StackPane mainLayout = new StackPane();
+        mainLayout.setStyle("-fx-background-color: black;"); // Set the background color to black
+
         canvas = new Canvas(750, 550);
         mainLayout.getChildren().add(canvas);
 
@@ -72,10 +93,10 @@ public class MainView {
                         gc.setFill(Color.GRAY);
                         break;
                     case 3: // solution
-                        gc.setFill(Color.GREEN);
+                        gc.setFill(Color.YELLOW);
                         break;
                     case 4: // start
-                        gc.setFill(Color.BLUE);
+                        gc.setFill(Color.GREEN);
                         break;
                     case 5: // end
                         gc.setFill(Color.RED);
@@ -97,65 +118,88 @@ public class MainView {
         settingsStage.setTitle("Settings Panel");
 
         // dropdown for selecting the maze generator
-        ComboBox<String> generatorDropdown = new ComboBox<>();
-        generatorDropdown.getItems().addAll("Recursive Backtracker", "Other Generator");
+        generatorDropdown = new ComboBox<>();
+        generatorDropdown.getItems().addAll("Recursive Backtracker", "Prims Generator");
+        generatorDropdown.setOnAction(event -> {
+            clearAndInitialize();
+        });
 
         // dropdown for selecting the maze solver
         ComboBox<String> solverDropdown = new ComboBox<>();
         solverDropdown.getItems().addAll("A* Solver", "Other Solver");
 
         // input fields for sizeX and sizeY
-        TextField sizeXInput = new TextField("25");
-        TextField sizeYInput = new TextField("15");
+        sizeXInput = new TextField("25");
+        sizeYInput = new TextField("15");
         sizeXInput.setPrefWidth(50);
         sizeYInput.setPrefWidth(50);
-
-        Button generateButton = new Button("Generate Maze");
-        generateButton.setOnAction(event -> {
-            String selectedGenerator = generatorDropdown.getValue();
-            MazeGenerator generator = getGenerator(selectedGenerator);
-            int sizeX = Integer.parseInt(sizeXInput.getText()); // TODO: add validation
-            int sizeY = Integer.parseInt(sizeYInput.getText()); // TODO: add validation
-            int[][] maze = generator.generateMaze(sizeX, sizeY);
-            drawMaze(maze);
-
-            isSolved = false;
+        sizeXInput.setOnAction(event -> {
+            clearAndInitialize();
+        });
+        sizeYInput.setOnAction(event -> {
+            clearAndInitialize();
         });
 
-        Button solveButton = new Button("Solve Maze");
-        solveButton.setOnAction(event -> {
-            if (isSolved)
-                return;
+        // Define button actions
+        generatorControlsLabel = new Label("Generator Controls");
+        generatorPauseButton = new Button("Pause");
+        generatorPlayButton = new Button("Play");
+        generatorStepButton = new Button("Step");
+        generatorRestartButton = new Button("Restart");
+        generatorDelaySlider = new Slider(0, 500, 100);
 
-            String selectedSolver = solverDropdown.getValue();
-            MazeSolver solver = getSolver(selectedSolver);
-            if (currentMaze != null) {
+        generatorPauseButton.setOnAction(event -> {
+            isPaused = true;
+            generatorPauseButton.setDisable(true);
+            generatorPlayButton.setDisable(false);
+            generatorStepButton.setDisable(false);
+        });
 
-                // find start (4) and end (5) positions
-                int startX = -1, startY = -1, endX = -1, endY = -1;
-                for (int row = 0; row < currentMaze.length; row++) {
-                    for (int col = 0; col < currentMaze[row].length; col++) {
-                        if (currentMaze[row][col] == 4) { // Start
-                            startX = col;
-                            startY = row;
-                        } else if (currentMaze[row][col] == 5) { // End
-                            endX = col - 1;
-                            endY = row;
-                        }
-                    }
-                }
+        generatorPlayButton.setOnAction(event -> {
+            if (currentMaze == null || generator == null) {
+                // Initialize the maze and generator
+                String selectedGenerator = generatorDropdown.getValue();
+                generator = getGenerator(selectedGenerator);
+                int sizeX = Integer.parseInt(sizeXInput.getText());
+                int sizeY = Integer.parseInt(sizeYInput.getText());
+                currentMaze = new int[sizeY][sizeX];
+                generator.initializeMaze(currentMaze);
 
-                // ensure start and end were found
-                if (startX != -1 && startY != -1 && endX != -1 && endY != -1) {
-                    int[][] solvedMaze = solver.solveMaze(currentMaze, startX, startY, endX, endY);
-                    drawMaze(solvedMaze);
-                } else {
-                    System.out.println("Start or end not found in the maze.");
-                }
+                // Setup and start the animation timer if not already running
+                setupAndStartAnimationTimer();
             }
 
-            isSolved = true;
+            isPaused = false;
+            generatorPauseButton.setDisable(false);
+            generatorPlayButton.setDisable(true);
+            generatorRestartButton.setDisable(false);
+            generatorStepButton.setDisable(true);
         });
+
+        generatorStepButton.setOnAction(event -> {
+            if (isPaused) {
+                // Perform a single generation step. This requires you to extract the step logic
+                // into a method that can be called here.
+                boolean shouldContinue = generator.generateMazeTick(currentMaze);
+                drawMaze(currentMaze);
+                if (!shouldContinue) {
+                    animationTimer.stop(); // If the generation is complete, stop the timer
+                }
+            }
+        });
+
+        generatorRestartButton.setOnAction(event -> {
+            clearAndInitialize();
+        });
+
+        generatorDelaySlider.setShowTickMarks(true);
+        generatorDelaySlider.setShowTickLabels(true);
+        generatorDelaySlider.setMajorTickUnit(10);
+        generatorDelaySlider.setBlockIncrement(1);
+
+        HBox generatorButtonBox = new HBox(10, generatorPlayButton, generatorPauseButton,
+                generatorStepButton, generatorRestartButton);
+        VBox generatorControlCluster = new VBox(10, generatorControlsLabel, generatorButtonBox, generatorDelaySlider);
 
         HBox sizeLayout = new HBox(5);
         sizeLayout.getChildren().addAll(new Label("Size X:"), sizeXInput, new Label("Size Y:"), sizeYInput);
@@ -165,9 +209,9 @@ public class MainView {
                 new Label("Select Generator:"), generatorDropdown,
                 new Label("Select Solver:"), solverDropdown,
                 sizeLayout,
-                generateButton, solveButton);
+                generatorControlCluster);
 
-        Scene scene = new Scene(layout, 300, 200);
+        Scene scene = new Scene(layout, 300, 600);
         settingsStage.setScene(scene);
         settingsStage.show();
     }
@@ -182,6 +226,8 @@ public class MainView {
         switch (selectedGenerator) {
             case "Recursive Backtracker":
                 return new RecursiveBacktracker();
+            case "Prims Generator":
+                return new PrimsGenerator();
             default:
                 return null;
         }
@@ -201,4 +247,51 @@ public class MainView {
                 return null;
         }
     }
+
+    private void setupAndStartAnimationTimer() {
+        animationTimer = new AnimationTimer() {
+            private long lastUpdate = 0;
+
+            @Override
+            public void handle(long now) {
+                long delay = (long) (generatorDelaySlider.getValue() * 1_000_000); // Adjusted for slider value
+                if (!isPaused && now - lastUpdate >= delay) {
+                    boolean shouldContinue = generator.generateMazeTick(currentMaze);
+                    drawMaze(currentMaze);
+                    lastUpdate = now;
+                    if (!shouldContinue) {
+                        this.stop();
+                        generatorPlayButton.setDisable(true); // Optionally disable play when done
+                        generatorPauseButton.setDisable(true);
+                        generatorRestartButton.setDisable(false);
+                    }
+                }
+            }
+        };
+        animationTimer.start();
+    }
+
+    private void clearAndInitialize() {
+        if (animationTimer != null) {
+            animationTimer.stop();
+        }
+
+        int sizeX = Integer.parseInt(sizeXInput.getText());
+        int sizeY = Integer.parseInt(sizeYInput.getText());
+        currentMaze = new int[sizeY][sizeX];
+
+        String selectedGenerator = generatorDropdown.getValue();
+        this.generator = getGenerator(selectedGenerator);
+        this.generator.initializeMaze(currentMaze);
+
+        setupAndStartAnimationTimer();
+        drawMaze(currentMaze);
+
+        isPaused = true;
+        generatorPlayButton.setDisable(false);
+        generatorPauseButton.setDisable(true);
+        generatorStepButton.setDisable(false);
+        generatorRestartButton.setDisable(false);
+    }
+
 }

@@ -13,5 +13,5 @@ public interface MazeSolver {
      * @return a 2D integer array representing the maze with the solution path
      *         marked, or null if no solution exists
      */
-    int[][] solveMaze(int[][] maze, int startX, int startY, int endX, int endY);
+    int[][] solveMaze(int[][] maze);
 }
